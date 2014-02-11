@@ -1,30 +1,61 @@
 import com.haxepunk.HXP;
+import flash.geom.Rectangle;
+
+#if flash
+
+/**
+ * Flash doesn't support post processing
+ * This is an empty class to prevent compilation errors
+ */
+class PostProcess
+{
+	public function new(shader:String)
+	{
+		#if debug HXP.log("Post processing not supported on Flash"); #end
+	}
+	public function enable(?to:PostProcess) { }
+	public function capture() { }
+	public function rebuild() { }
+	public function setUniform(variable:String, value:Float) { }
+}
+
+#else
 
 import openfl.Assets;
 import openfl.gl.*;
 import openfl.utils.Float32Array;
 import openfl.display.OpenGLView;
-import flash.geom.Rectangle;
 
 typedef Uniform = {
 	var id:Int;
 	var value:Float;
 };
 
+/**
+ * Fullscreen post processing class
+ * Uses glsl shaders to produce post processing effects
+ */
 class PostProcess extends OpenGLView
 {
 
-	public var renderTo:GLFramebuffer = null;
-
+	/**
+	 * Create a new PostProcess object
+	 * @param fragmentShader  A glsl file in your assets path
+	 */
 	public function new(fragmentShader:String)
 	{
 		super();
 		uniforms = new Map<String, Uniform>();
 
+#if ios
+		defaultFramebuffer = new GLFramebuffer(GL.version, 1); // faked framebuffer
+#end
+
 		// create and bind the framebuffer
 		framebuffer = GL.createFramebuffer();
 		rebuild();
 
+#if !ios
 		var status = GL.checkFramebufferStatus(GL.FRAMEBUFFER);
 		switch (status)
 		{
@@ -36,6 +67,7 @@ class PostProcess extends OpenGLView
 			default:
 				trace("Check frame buffer: " + status);
 		}
+#end
 
 		buffer = GL.createBuffer();
 		GL.bindBuffer(GL.ARRAY_BUFFER, buffer);
@@ -47,37 +79,63 @@ class PostProcess extends OpenGLView
 			{ src: Assets.getText(fragmentShader), fragment: true }
 		]);
 
+		// default shader variables
 		imageUniform = shader.uniform("uImage0");
 		timeUniform = shader.uniform("uTime");
 		resolutionUniform = shader.uniform("uResolution");
+
 		vertexSlot = shader.attribute("aVertex");
 		texCoordSlot = shader.attribute("aTexCoord");
 	}
 
-	public function setUniform(variable:String, value:Float)
+	/**
+	 * Set a uniform value in the shader
+	 * @param uniform  The uniform name within the shader source
+	 * @param value    Value to set the uniform to
+	 */
+	public function setUniform(uniform:String, value:Float):Void
 	{
-		if (uniforms.exists(variable))
+		if (uniforms.exists(uniform))
 		{
-			var uniform = uniforms.get(variable);
+			var uniform = uniforms.get(uniform);
 			uniform.value = value;
 		}
 		else
 		{
-			var id:Int = shader.uniform(variable);
-			uniforms.set(variable, {id: id, value: value});
+			var id:Int = shader.uniform(uniform);
+			if (id != -1) uniforms.set(uniform, {id: id, value: value});
 		}
 	}
 
-	public function enable(?to:PostProcess)
+	/**
+	 * Allows multi pass rendering by passing the framebuffer to another post processing class
+	 * Renders to a PostProcess framebuffer instead of the screen, if set
+	 * Set to null to render to the screen
+	 */
+	public var to(never, set):PostProcess;
+	private function set_to(value:PostProcess):PostProcess
+	{
+		renderTo = (value == null ? defaultFramebuffer : value.framebuffer);
+		return value;
+	}
+
+	/**
+	 * Enables the PostProcess object for rendering
+	 * @param to  (Optional) Render to PostProcess framebuffer instead of screen
+	 */
+	public function enable(?to:PostProcess):Void
 	{
 		var index = HXP.stage.numChildren;
 		if (HXP.console.visible) index -= 1;
 		if (index < 0) index = 0;
 		HXP.stage.addChildAt(this, index); // add before the console is enabled
 
-		if (to != null) renderTo = to.framebuffer;
+		this.to = to;
 	}
 
+	/**
+	 * Rebuilds the renderbuffer to match screen dimensions
+	 */
 	public function rebuild()
 	{
 		GL.bindFramebuffer(GL.FRAMEBUFFER, framebuffer);
@@ -90,6 +148,7 @@ class PostProcess extends OpenGLView
 		GL.bindFramebuffer(GL.FRAMEBUFFER, null);
 	}
 
+	/* @private creates a renderbuffer object */
 	private inline function createRenderbuffer(width:Int, height:Int)
 	{
 		// Bind the renderbuffer and create a depth buffer
@@ -101,6 +160,7 @@ class PostProcess extends OpenGLView
 		GL.framebufferRenderbuffer(GL.FRAMEBUFFER, GL.DEPTH_ATTACHMENT, GL.RENDERBUFFER, renderbuffer);
 	}
 
+	/* @private creates a texture */
 	private inline function createTexture(width:Int, height:Int)
 	{
 		texture = GL.createTexture();
@@ -116,6 +176,9 @@ class PostProcess extends OpenGLView
 		GL.framebufferTexture2D(GL.FRAMEBUFFER, GL.COLOR_ATTACHMENT0, GL.TEXTURE_2D, texture, 0);
 	}
 
+	/**
+	 * Capture what is subsequently rendered to this framebuffer
+	 */
 	public function capture()
 	{
 		GL.bindFramebuffer(GL.FRAMEBUFFER, framebuffer);
@@ -124,6 +187,9 @@ class PostProcess extends OpenGLView
 		GL.clear(GL.DEPTH_BUFFER_BIT | GL.COLOR_BUFFER_BIT);
 	}
 
+	/**
+	 * Renders to a framebuffer or the screen every frame
+	 */
 	override public function render(rect:Rectangle)
 	{
 		time += HXP.elapsed;
@@ -148,11 +214,7 @@ class PostProcess extends OpenGLView
 		GL.uniform1f(timeUniform, time);
 		GL.uniform2f(resolutionUniform, HXP.windowWidth, HXP.windowHeight);
 
-		for (key in uniforms.keys())
-		{
-			var u = uniforms.get(key);
-			GL.uniform1f(u.id, u.value);
-		}
+		for (u in uniforms) GL.uniform1f(u.id, u.value);
 
 		GL.drawArrays(GL.TRIANGLES, 0, 6);
 
@@ -163,7 +225,7 @@ class PostProcess extends OpenGLView
 		GL.disableVertexAttribArray(vertexSlot);
 		GL.disableVertexAttribArray(texCoordSlot);
 
-		shader.unbind();
+		GL.useProgram(null);
 
 		// check gl error
 		if (GL.getError() == GL.INVALID_FRAMEBUFFER_OPERATION)
@@ -178,6 +240,10 @@ class PostProcess extends OpenGLView
 
 	private var shader:Shader;
 	private var buffer:GLBuffer;
+	private var renderTo:GLFramebuffer;
+	private var defaultFramebuffer:GLFramebuffer = null;
+
+	/* @private Time accumulator passed to the shader */
 	private var time:Float = 0;
 
 	private var vertexSlot:Int;
@@ -187,6 +253,7 @@ class PostProcess extends OpenGLView
 	private var timeUniform:Int;
 	private var uniforms:Map<String, Uniform>;
 
+	/* @private Simple full screen vertex shader */
 	private static inline var vertexShader:String = "
 #ifdef GL_ES
 	precision mediump float;
@@ -216,3 +283,5 @@ void main() {
 	}
 
 }
+
+#end

@@ -4,8 +4,8 @@ class MainScene extends Scene
 {
 	public override function begin()
 	{
-		addGraphic(com.haxepunk.graphics.Image.createRect(50, 50, 0xFFEECC), 0, 100, 150);
-		addGraphic(com.haxepunk.graphics.Image.createRect(250, 150, 0x553388), 0, 100, 250);
-		addGraphic(com.haxepunk.graphics.Image.createRect(150, 50, 0x158BAC), 0, 200, 50);
+		addGraphic(com.haxepunk.graphics.Image.createRect(40, 40, 0xFFEECC), 0, 5, 5);
+		addGraphic(com.haxepunk.graphics.Image.createRect(40, 40, 0x553388), 0, 55, 5);
+		addGraphic(com.haxepunk.graphics.Image.createRect(90, 40, 0x158BAC), 0, 5, 55);
 	}
 }

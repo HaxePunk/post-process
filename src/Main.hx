@@ -12,7 +12,6 @@ class Main extends Engine
 
 		HXP.scene = new MainScene();
 
-#if !flash
 		var radius = 1.2;
 
 		blurH = new PostProcess("shaders/blur.frag");
@@ -27,10 +26,8 @@ class Main extends Engine
 
 		blurH.enable(blurV);
 		blurV.enable();
-#end
 	}
 
-#if !flash
 	override public function resize()
 	{
 		super.resize();
@@ -46,9 +43,8 @@ class Main extends Engine
 		super.render();
 	}
 
-	var blurH:PostProcess;
-	var blurV:PostProcess;
-#end
+	private var blurH:PostProcess;
+	private var blurV:PostProcess;
 
 	override public function update()
 	{
