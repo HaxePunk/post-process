@@ -63,7 +63,7 @@ class Shader
 	 * Return the attribute location in this shader
 	 * @param a  The attribute name to find
 	 */
-	public function attribute(a:String):Int
+	public inline function attribute(a:String):Int
 	{
 		return GL.getAttribLocation(program, a);
 	}
@@ -72,7 +72,7 @@ class Shader
 	 * Return the uniform location in this shader
 	 * @param a  The uniform name to find
 	 */
-	public function uniform(u:String):Int
+	public inline function uniform(u:String):Int
 	{
 		return GL.getUniformLocation(program, u);
 	}

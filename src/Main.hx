@@ -43,9 +43,6 @@ class Main extends Engine
 		super.render();
 	}
 
-	private var blurH:PostProcess;
-	private var blurV:PostProcess;
-
 	override public function update()
 	{
 		if (Input.pressed(Key.F))
@@ -54,6 +51,9 @@ class Main extends Engine
 		}
 		super.update();
 	}
+
+	private var blurH:PostProcess;
+	private var blurV:PostProcess;
 
 	public static function main() { new Main(); }
 
