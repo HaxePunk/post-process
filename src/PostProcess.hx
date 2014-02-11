@@ -6,14 +6,20 @@ import openfl.utils.Float32Array;
 import openfl.display.OpenGLView;
 import flash.geom.Rectangle;
 
+typedef Uniform = {
+	var id:Int;
+	var value:Float;
+};
+
 class PostProcess extends OpenGLView
 {
 
 	public var renderTo:GLFramebuffer = null;
 
-	public function new(fragmentShader:String, ?chain:PostProcess)
+	public function new(fragmentShader:String)
 	{
 		super();
+		uniforms = new Map<String, Uniform>();
 
 		// create and bind the framebuffer
 		framebuffer = GL.createFramebuffer();
@@ -40,20 +46,36 @@ class PostProcess extends OpenGLView
 			{ src: vertexShader, fragment: false },
 			{ src: Assets.getText(fragmentShader), fragment: true }
 		]);
+
 		imageUniform = shader.uniform("uImage0");
+		timeUniform = shader.uniform("uTime");
 		resolutionUniform = shader.uniform("uResolution");
 		vertexSlot = shader.attribute("aVertex");
 		texCoordSlot = shader.attribute("aTexCoord");
-
-		if (chain != null) renderTo = chain.framebuffer;
 	}
 
-	public function enable()
+	public function setUniform(variable:String, value:Float)
+	{
+		if (uniforms.exists(variable))
+		{
+			var uniform = uniforms.get(variable);
+			uniform.value = value;
+		}
+		else
+		{
+			var id:Int = shader.uniform(variable);
+			uniforms.set(variable, {id: id, value: value});
+		}
+	}
+
+	public function enable(?to:PostProcess)
 	{
 		var index = HXP.stage.numChildren;
 		if (HXP.console.visible) index -= 1;
 		if (index < 0) index = 0;
 		HXP.stage.addChildAt(this, index); // add before the console is enabled
+
+		if (to != null) renderTo = to.framebuffer;
 	}
 
 	public function rebuild()
@@ -100,14 +122,11 @@ class PostProcess extends OpenGLView
 
 		GL.viewport(0, 0, HXP.windowWidth, HXP.windowHeight);
 		GL.clear(GL.DEPTH_BUFFER_BIT | GL.COLOR_BUFFER_BIT);
-
-		GL.disable(GL.DEPTH_TEST);
-		GL.enable(GL.BLEND);
-		GL.blendFunc(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA);
 	}
 
 	override public function render(rect:Rectangle)
 	{
+		time += HXP.elapsed;
 		GL.bindFramebuffer(GL.FRAMEBUFFER, renderTo);
 
 		GL.clear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
@@ -126,7 +145,14 @@ class PostProcess extends OpenGLView
 		GL.vertexAttribPointer(texCoordSlot, 2, GL.FLOAT, false, 16, 8);
 
 		GL.uniform1i(imageUniform, 0);
+		GL.uniform1f(timeUniform, time);
 		GL.uniform2f(resolutionUniform, HXP.windowWidth, HXP.windowHeight);
+
+		for (key in uniforms.keys())
+		{
+			var u = uniforms.get(key);
+			GL.uniform1f(u.id, u.value);
+		}
 
 		GL.drawArrays(GL.TRIANGLES, 0, 6);
 
@@ -152,11 +178,14 @@ class PostProcess extends OpenGLView
 
 	private var shader:Shader;
 	private var buffer:GLBuffer;
+	private var time:Float = 0;
 
 	private var vertexSlot:Int;
 	private var texCoordSlot:Int;
 	private var imageUniform:Int;
 	private var resolutionUniform:Int;
+	private var timeUniform:Int;
+	private var uniforms:Map<String, Uniform>;
 
 	private static inline var vertexShader:String = "
 #ifdef GL_ES

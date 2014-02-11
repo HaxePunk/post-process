@@ -1,5 +1,5 @@
-import com.haxepunk.Engine;
-import com.haxepunk.HXP;
+import com.haxepunk.*;
+import com.haxepunk.utils.*;
 
 class Main extends Engine
 {
@@ -13,10 +13,20 @@ class Main extends Engine
 		HXP.scene = new MainScene();
 
 #if !flash
-		scanline = new PostProcess("shaders/scanline.frag");
-		invert = new PostProcess("shaders/invert.frag", scanline);
-		invert.enable();
-		scanline.enable();
+		var radius = 1.2;
+
+		blurH = new PostProcess("shaders/blur.frag");
+		blurH.setUniform("radius", radius);
+		blurH.setUniform("dirx", 1.0);
+		blurH.setUniform("diry", 0.0);
+
+		blurV = new PostProcess("shaders/blur.frag");
+		blurV.setUniform("radius", radius);
+		blurV.setUniform("dirx", 0.0);
+		blurV.setUniform("diry", 1.0);
+
+		blurH.enable(blurV);
+		blurV.enable();
 #end
 	}
 
@@ -24,21 +34,30 @@ class Main extends Engine
 	override public function resize()
 	{
 		super.resize();
-		if (scanline != null) scanline.rebuild();
-		if (invert != null) invert.rebuild();
+		if (blurH != null) blurH.rebuild();
+		if (blurV != null) blurV.rebuild();
 	}
 
 	override public function render()
 	{
-		invert.capture();
+		blurH.capture();
 
 		// render to a back buffer
 		super.render();
 	}
 
-	var scanline:PostProcess;
-	var invert:PostProcess;
+	var blurH:PostProcess;
+	var blurV:PostProcess;
 #end
+
+	override public function update()
+	{
+		if (Input.pressed(Key.F))
+		{
+			HXP.fullscreen = !HXP.fullscreen;
+		}
+		super.update();
+	}
 
 	public static function main() { new Main(); }
 
